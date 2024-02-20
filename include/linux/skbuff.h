@@ -862,6 +862,9 @@ struct sk_buff {
 		struct llist_node	ll_node;
 	};
 
+	/* daveti: for usbfilter to recover pid */
+	pid_t			app_pid;
+
 	union {
 		struct sock		*sk;
 		int			ip_defrag_offset;
