@@ -11,6 +11,7 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
+#include <linux/usbfilter.h> //daveti: for usbfilter
 
 #include "usbip_common.h"
 #include "vhci.h"
@@ -798,6 +799,15 @@ static int vhci_urb_enqueue(struct usb_hcd *hcd, struct urb *urb, gfp_t mem_flag
 	}
 
 out:
+/* daveti: usbfilter */
+#ifdef CONFIG_USB_FILTER
+	if (usbfilter_filter_urb(urb)) {
+		pr_info("usbfilter (vhci) debug: drop urb [%p]\n", urb);
+		/* Drop this URB */
+		urb->status = -EINVAL;
+		goto no_need_xmit;
+	}
+#endif
 	vhci_tx_urb(urb, vdev);
 	spin_unlock_irqrestore(&vhci->lock, flags);
 
