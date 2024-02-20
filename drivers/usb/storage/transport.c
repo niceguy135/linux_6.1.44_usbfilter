@@ -139,6 +139,14 @@ static int usb_stor_msg_common(struct us_data *us, int timeout)
 		us->current_urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
 	us->current_urb->transfer_dma = us->iobuf_dma;
 
+	/* usbfilter: retrieve the app pid
+	 * daveti
+	 */
+	if ((us->srb) && (us->srb->request))
+		us->current_urb->app_pid = us->srb->request->uf_pid;
+	else
+		us->current_urb->app_pid = 0;
+
 	/* submit the URB */
 	status = usb_submit_urb(us->current_urb, GFP_NOIO);
 	if (status) {
@@ -403,6 +411,30 @@ int usb_stor_bulk_transfer_buf(struct us_data *us, unsigned int pipe,
 EXPORT_SYMBOL_GPL(usb_stor_bulk_transfer_buf);
 
 /*
+ * usbfilter: trace the app pid for the sglist
+ * daveti
+ */
+static void usb_stor_filter_trace_app_pid_sglist(struct us_data *us)
+{
+	int i;
+	pid_t pid;
+	struct usb_sg_request *io = &us->current_sg;
+	int entries = io->entries;
+
+	/* Get the app pid */
+	if ((us->srb) && (us->srb->request))
+		pid = us->srb->request->uf_pid;
+	else
+		pid = 0;
+
+	/* Set the app pid for each urb */
+	spin_lock_irq(&io->lock);
+	for (i = 0; i < entries; i++)
+		io->urbs[i]->app_pid = pid;
+	spin_unlock_irq(&io->lock);
+}
+
+/*
  * Transfer a scatter-gather list via bulk transfer
  *
  * This function does basically the same thing as usb_stor_bulk_transfer_buf()
@@ -442,6 +474,9 @@ static int usb_stor_bulk_transfer_sglist(struct us_data *us, unsigned int pipe,
 			usb_sg_cancel(&us->current_sg);
 		}
 	}
+
+	/* daveti: trace the app pid for all the sg */
+	usb_stor_filter_trace_app_pid_sglist(us);
 
 	/* wait for the completion of the transfer */
 	usb_sg_wait(&us->current_sg);
