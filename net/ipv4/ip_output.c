@@ -543,6 +543,14 @@ EXPORT_SYMBOL(__ip_queue_xmit);
 
 int ip_queue_xmit(struct sock *sk, struct sk_buff *skb, struct flowi *fl)
 {
+	/*
+	 * usbfilter: trying to save the pid explicitely
+	 * NOTE: should not be in IRQ ctx
+	 * Feb 16, 2016
+	 * daveti
+	 */
+	skb->app_pid = current->pid;
+	
 	return __ip_queue_xmit(sk, skb, fl, inet_sk(sk)->tos);
 }
 EXPORT_SYMBOL(ip_queue_xmit);
