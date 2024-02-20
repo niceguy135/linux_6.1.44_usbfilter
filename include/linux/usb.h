@@ -76,6 +76,8 @@ struct usb_host_endpoint {
 	int extralen;
 	int enabled;
 	int streams;
+
+	int if_num;	/* daveti: usbfilter - remap the upper-level interface */
 };
 
 /* host-side wrapper for one interface setting's parsed descriptors */
@@ -1572,6 +1574,10 @@ struct urb {
 	void *hcpriv;			/* private data for host controller */
 	atomic_t use_count;		/* concurrent submissions counter */
 	atomic_t reject;		/* submissions will fail */
+
+	/* daveti: for usbfilter */
+	pid_t submit_pid;		/* PID set during the usb_submit_urb */
+	pid_t app_pid;			/* PID set during the execution path of an application */
 
 	/* public: documented fields in the urb that can be used by drivers */
 	struct list_head urb_list;	/* list head for use by the urb's
