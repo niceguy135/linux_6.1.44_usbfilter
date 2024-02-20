@@ -31,6 +31,9 @@
 #include <linux/kernel.h>
 #include <linux/pm_runtime.h>
 
+/* daveti: for usbfilter */
+#include <linux/usbfilter.h>
+
 /*-------------------------------------------------------------------------*/
 
 /*
@@ -518,6 +521,19 @@ static int rx_submit (struct usbnet *dev, struct urb *urb, gfp_t flags)
 	    test_bit(EVENT_DEV_OPEN, &dev->flags) &&
 	    !test_bit (EVENT_RX_HALT, &dev->flags) &&
 	    !test_bit (EVENT_DEV_ASLEEP, &dev->flags)) {
+
+		/*
+		 * support for usbfilter
+		 * Unlike the USB master-slave operation,
+		 * we need to take care of both rx and tx, which both trigger
+		 * a USB packet sent to the host controller.
+		 * However, it is possible that the skb for rx does not belong
+		 * to any process in the user-space.
+		 * Jan 7, 2016
+		 * daveti
+		 */
+		usbfilter_get_app_pid_from_skb(skb, urb);
+
 		switch (retval = usb_submit_urb (urb, GFP_ATOMIC)) {
 		case -EPIPE:
 			usbnet_defer_kevent (dev, EVENT_RX_HALT);
@@ -1452,6 +1468,14 @@ netdev_tx_t usbnet_start_xmit (struct sk_buff *skb,
 	}
 #endif
 
+	/*
+	 * Support for usbfilter
+	 * Assign the owner pid of skbuff to the urb!
+	 * Jan 7, 2016
+	 * daveti
+	 */
+	usbfilter_get_app_pid_from_skb(skb, urb);
+
 	switch ((retval = usb_submit_urb (urb, GFP_ATOMIC))) {
 	case -EPIPE:
 		netif_stop_queue (net);
@@ -1913,6 +1937,15 @@ int usbnet_resume (struct usb_interface *intf)
 		while ((res = usb_get_from_anchor(&dev->deferred))) {
 
 			skb = (struct sk_buff *)res->context;
+			
+			/*
+			 * NOT so clear if we should take care of the intr urb here
+			 * nevertheless, the urb is bound with skb...
+			 * Jan 7, 2016
+			 * daveti
+			 */
+			usbfilter_get_app_pid_from_skb(skb, res);
+
 			retval = usb_submit_urb(res, GFP_ATOMIC);
 			if (retval < 0) {
 				dev_kfree_skb_any(skb);
