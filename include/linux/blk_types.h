@@ -250,6 +250,8 @@ typedef unsigned int blk_qc_t;
  * stacking drivers)
  */
 struct bio {
+	sector_t bi_sector;
+
 	struct bio		*bi_next;	/* request queue link */
 	struct block_device	*bi_bdev;
 	blk_opf_t		bi_opf;		/* bottom bits REQ_OP, top bits

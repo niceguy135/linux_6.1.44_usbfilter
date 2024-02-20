@@ -1214,6 +1214,33 @@ int __init blk_dev_init(void)
 	return 0;
 }
 
+//usbfilter - daveti
+static enum bio_merge_status bio_attempt_back_merge(struct request *req,
+		struct bio *bio, unsigned int nr_segs)
+{
+	const blk_opf_t ff = bio_failfast(bio);
+
+	if (!ll_back_merge_fn(req, bio, nr_segs))
+		return BIO_MERGE_FAILED;
+
+	trace_block_bio_backmerge(bio);
+	rq_qos_merge(req->q, req, bio);
+
+	if ((req->cmd_flags & REQ_FAILFAST_MASK) != ff)
+		blk_rq_set_mixed_merge(req);
+
+	blk_update_mixed_merge(req, bio, false);
+
+	req->biotail->bi_next = bio;
+	req->biotail = bio;
+	req->__data_len += bio->bi_iter.bi_size;
+
+	bio_crypt_free_ctx(bio);
+
+	blk_account_io_merge_bio(req);
+	return BIO_MERGE_OK;
+}
+
 /* daveti: special version for usbfilter */
 bool blk_attempt_plug_merge_uf(struct request_queue *q, struct bio *bio,
                             unsigned int *request_count, pid_t pid)
@@ -1231,10 +1258,11 @@ bool blk_attempt_plug_merge_uf(struct request_queue *q, struct bio *bio,
                 goto out;
         *request_count = 0;
 
-        if (q->mq_ops)
-                plug_list = &plug->mq_list;
-        else
-                plug_list = &plug->list;
+        // if (q->mq_ops)
+        //         plug_list = &plug->mq_list;
+        // else
+        //         plug_list = &plug->list;
+		plug_list = plug->mq_list;
 
         list_for_each_entry_reverse(rq, plug_list, queuelist) {
                 int el_ret;
