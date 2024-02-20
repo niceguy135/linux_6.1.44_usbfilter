@@ -29,6 +29,9 @@
 #include "uas-detect.h"
 #include "scsiglue.h"
 
+/* daveti: for usbfilter */
+static int usbfilter_debug;
+
 #define MAX_CMNDS 256
 
 struct uas_dev_info {
@@ -638,6 +641,16 @@ static int uas_queuecommand_lck(struct scsi_cmnd *cmnd)
 	struct uas_cmd_info *cmdinfo = scsi_cmd_priv(cmnd);
 	unsigned long flags;
 	int idx, err;
+
+	//daveti: debug
+	if (usbfilter_debug) {
+		if (in_interrupt())
+			pr_info("usbfilter: uas debug - [%s] in IRQ ctx for cmnd [%p]\n",
+				__func__, cmnd);
+		else
+			pr_info("usbfilter: uas debug - [%s] in process ctx with pid [%i] comm [%s] for cmnd [%p]\n",
+				__func__, current->pid, current->comm, cmnd);
+	}
 
 	/* Re-check scsi_block_requests now that we've the host-lock */
 	if (cmnd->device->host->host_self_blocked)
