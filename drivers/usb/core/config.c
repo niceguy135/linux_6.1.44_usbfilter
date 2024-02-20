@@ -315,6 +315,13 @@ static int usb_parse_endpoint(struct device *ddev, int cfgno,
 	INIT_LIST_HEAD(&endpoint->urb_list);
 
 	/*
+	 * usbfilter: save the interface number in host endpoint
+	 * Feb 10, 2016
+	 * daveti
+	 */
+	endpoint->if_num = ifp->desc.bInterfaceNumber;
+
+	/*
 	 * Fix up bInterval values outside the legal range.
 	 * Use 10 or 8 ms if no proper value can be guessed.
 	 */
