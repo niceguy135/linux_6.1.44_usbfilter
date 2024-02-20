@@ -593,6 +593,19 @@ int usb_submit_urb(struct urb *urb, gfp_t mem_flags)
 		}
 	}
 
+	/*
+	 * usbfilter: before we submit this urb into HCD, let us try to
+	 * figure out the pid. By default, it is set to 0. However,
+	 * the urb may be reused. Therefore, need to reinit the pid
+	 * to make sure it is 0 by default.
+	 * Jul 6, 2015
+	 * daveti
+	 */
+	if (in_interrupt())
+		urb->submit_pid = 0;
+	else
+		urb->submit_pid = current->pid;
+
 	return usb_hcd_submit_urb(urb, mem_flags);
 }
 EXPORT_SYMBOL_GPL(usb_submit_urb);
