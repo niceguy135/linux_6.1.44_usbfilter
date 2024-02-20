@@ -55,6 +55,9 @@
 #define VENDOR_ID_PENTAX	0x0a17
 #define VENDOR_ID_MOTOROLA	0x22b8
 
+/* daveti: for usbfilter */
+static int usbfilter_debug;
+
 /***********************************************************************
  * Host functions 
  ***********************************************************************/
@@ -367,6 +370,16 @@ static int queuecommand_lck(struct scsi_cmnd *srb)
 {
 	void (*done)(struct scsi_cmnd *) = scsi_done;
 	struct us_data *us = host_to_us(srb->device->host);
+
+	//daveti: debug
+	if (usbfilter_debug) {
+		if (in_interrupt())
+			pr_info("usbfilter: scsiglue debug - [%s] in IRQ ctx for srb [%p] with cmnd [0x%x]\n",
+				__func__, srb, srb->cmnd[0]);
+		else
+			pr_info("usbfilter: scsiglue debug - [%s] in process ctx with pid [%i] comm [%s] for srb [%p] with cmnd [0x%x]\n",
+				__func__, current->pid, current->comm, srb, srb->cmnd[0]);
+	}
 
 	/* check for state-transition errors */
 	if (us->srb != NULL) {
