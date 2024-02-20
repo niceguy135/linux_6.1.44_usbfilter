@@ -320,6 +320,9 @@ struct queue_limits {
 	unsigned int		dma_alignment;
 };
 
+//usbfilter
+pid_t uf_pid;
+
 typedef int (*report_zones_cb)(struct blk_zone *zone, unsigned int idx,
 			       void *data);
 
