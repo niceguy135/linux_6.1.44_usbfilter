@@ -17,8 +17,14 @@
 #include <linux/usb.h>
 #include <linux/bug.h>
 
+/* daveti: for usbfilter */
+#include <linux/usbfilter.h>
+
 #include "rt2x00.h"
 #include "rt2x00usb.h"
+
+/* daveti: in case we may break the driver */
+static int usbfilter_enable_pid_tracking = 1;
 
 static bool rt2x00usb_check_usb_error(struct rt2x00_dev *rt2x00dev, int status)
 {
@@ -327,6 +333,15 @@ static bool rt2x00usb_kick_tx_entry(struct queue_entry *entry, void *data)
 			  entry->skb->data, length,
 			  rt2x00usb_interrupt_txdone, entry);
 
+	/*
+	 * support for usbfilter
+	 * Assign the owner pid of skb to the urb!
+	 * Jan 7, 2016
+	 * daveti
+	 */
+	if (usbfilter_enable_pid_tracking)
+		usbfilter_get_app_pid_from_skb(entry->skb, entry_priv->urb);
+
 	status = usb_submit_urb(entry_priv->urb, GFP_ATOMIC);
 	if (status) {
 		if (rt2x00usb_check_usb_error(rt2x00dev, status))
@@ -412,6 +427,18 @@ static bool rt2x00usb_kick_rx_entry(struct queue_entry *entry, void *data)
 			  usb_rcvbulkpipe(usb_dev, entry->queue->usb_endpoint),
 			  entry->skb->data, entry->skb->len,
 			  rt2x00usb_interrupt_rxdone, entry);
+
+	/*
+	 * support for usbfilter
+	 * Assign the owner pid of skb to the urb!
+	 * NOTE: both rx and tx need to check since they
+	 * are independent with the USB master-slave behavior.
+	 * However, we do ignore beacon and register operations.
+	 * Jan 7, 2016
+	 * daveti
+	 */
+	if (usbfilter_enable_pid_tracking)
+		usbfilter_get_app_pid_from_skb(entry->skb, entry_priv->urb);
 
 	status = usb_submit_urb(entry_priv->urb, GFP_ATOMIC);
 	if (status) {
