@@ -119,6 +119,9 @@ extern struct request *elv_former_request(struct request_queue *, struct request
 extern struct request *elv_latter_request(struct request_queue *, struct request *);
 void elevator_init_mq(struct request_queue *q);
 
+//usbfilter
+extern int elv_merge_uf(struct request_queue *, struct request **, struct bio *, pid_t);
+
 /*
  * io scheduler registration
  */
