@@ -38,9 +38,14 @@
 #include <linux/usb/hcd.h>
 #include <linux/usb/otg.h>
 
+/* daveti: for usbfilter */
+#include <linux/usbfilter.h>
+
 #include "usb.h"
 #include "phy.h"
 
+/* daveti: USB filter related */
+static int usbfilter_debug = 0;
 
 /*-------------------------------------------------------------------------*/
 
@@ -1540,6 +1545,75 @@ int usb_hcd_submit_urb (struct urb *urb, gfp_t mem_flags)
 	atomic_inc(&urb->dev->urbnum);
 	usbmon_urb_submit(&hcd->self, urb);
 
+	/* daveti: right after usbmon, usbfilter should start to work
+	 * before the URB enqueue really happens
+	 */
+	if (usbfilter_debug) {
+		if (in_interrupt())
+			pr_info("usbfilter debug: URB [%p] submitted in IRQ ctx for device: "
+				"(devnum [%d], devpath [%s], product [%s], manufacturer [%s], serial [%s]), "
+				"with pipe (type [%d], in [%d], endpoint [%d], devaddr [%d]), "
+				"submit_pid [%i], app_pid [%i]\n",
+				urb, urb->dev->devnum,
+				(urb->dev->devpath ? urb->dev->devpath : "UNKNOWN"),
+				(urb->dev->product ? urb->dev->product : "UNKNOWN"),
+				(urb->dev->manufacturer ? urb->dev->manufacturer : "UNKNOWN"),
+				(urb->dev->serial ? urb->dev->serial : "UNKNOWN"),
+				usb_pipetype(urb->pipe),
+				usb_pipein(urb->pipe),
+				usb_pipeendpoint(urb->pipe),
+				usb_pipedevice(urb->pipe),
+				urb->submit_pid,
+				urb->app_pid);
+		else {
+			pr_info("usbfilter debug: URB [%p] submitted by pid [%i], comm [%s], for device: "
+				"devnum [%d], devpath [%s], product [%s], manufacturer [%s], serial [%s]), "
+				"with pipe (type [%d], in [%d], endpoint [%d], devaddr [%d]), "
+				"submit_pid [%i], app_pid [%i]\n",
+				urb, current->pid, current->comm,
+				urb->dev->devnum,
+				(urb->dev->devpath ? urb->dev->devpath : "UNKNOWN"),
+				(urb->dev->product ? urb->dev->product : "UNKNOWN"),
+				(urb->dev->manufacturer ? urb->dev->manufacturer : "UNKNOWN"),
+				(urb->dev->serial ? urb->dev->serial : "UNKNOWN"),
+                                usb_pipetype(urb->pipe),
+                                usb_pipein(urb->pipe),
+                                usb_pipeendpoint(urb->pipe),
+                                usb_pipedevice(urb->pipe),
+				urb->submit_pid,
+				urb->app_pid);
+
+			/* daveti: make sure we are able to block skype
+			 * FIXME: return -EINVAL may be better....
+			if (!strcasecmp(current->comm, "skype")) {
+				pr_info("usbfilter verify: drop the URB from skype\n");
+				return 0;
+			}
+			*/
+		}
+
+		/* Dump the OUT buffer */
+		if (!usb_pipein(urb->pipe)) {
+			pr_info("usbfilter debug: OUT, transfer len [%u]\n", urb->transfer_buffer_length);
+			if (urb->transfer_buffer)
+				print_hex_dump(KERN_INFO, "OUT ", DUMP_PREFIX_NONE, 16, 1,
+					urb->transfer_buffer, urb->transfer_buffer_length, 0);
+		}
+	}
+#ifdef CONFIG_USB_FILTER
+	/*
+	 * usbfilter pkt filtering
+	 * daveti
+	 */
+	if (usbfilter_filter_urb(urb)) {
+		/* if (usbfilter_debug) */
+			pr_info("usbfilter debug: drop urb [%p]\n", urb);
+		/* Drop this URB */
+		status = -EINVAL;
+		goto usbfilter_jmp;
+	}
+#endif
+
 	/* NOTE requirements on root-hub callers (usbfs and the hub
 	 * driver, for now):  URBs' urb->transfer_buffer must be
 	 * valid and usb_buffer_{sync,unmap}() not be needed, since
@@ -1558,6 +1632,11 @@ int usb_hcd_submit_urb (struct urb *urb, gfp_t mem_flags)
 				unmap_urb_for_dma(hcd, urb);
 		}
 	}
+
+#ifdef CONFIG_USB_FILTER
+/* daveti: skip the enqueue */
+usbfilter_jmp:
+#endif
 
 	if (unlikely(status)) {
 		usbmon_urb_submit_error(&hcd->self, urb, status);
@@ -1655,6 +1734,51 @@ static void __usb_hcd_giveback_urb(struct urb *urb)
 
 	unmap_urb_for_dma(hcd, urb);
 	usbmon_urb_complete(&hcd->self, urb, status);
+	/* daveti: usbfilter here */
+	if (usbfilter_debug) {
+		if (in_interrupt())
+			pr_info("usbfilter debug: URB [%p] giveback in IRQ ctx for device: "
+                                "(devnum [%d], devpath [%s], product [%s], manufacturer [%s], serial [%s]), "
+                                "with pipe (type [%d], in [%d], endpoint [%d], devaddr [%d]), "
+				"submit_pid [%i], app_pid [%i]\n",
+                                urb, urb->dev->devnum,
+				(urb->dev->devpath ? urb->dev->devpath : "UNKNOWN"),
+                                (urb->dev->product ? urb->dev->product : "UNKNOWN"),
+                                (urb->dev->manufacturer ? urb->dev->manufacturer : "UNKNOWN"),
+                                (urb->dev->serial ? urb->dev->serial : "UNKNOWN"),
+                                usb_pipetype(urb->pipe),
+                                usb_pipein(urb->pipe),
+                                usb_pipeendpoint(urb->pipe),
+                                usb_pipedevice(urb->pipe),
+				urb->submit_pid,
+				urb->app_pid);
+
+		else
+			pr_info("usbfilter debug: URB [%p] giveback by pid [%i], comm [%s] for device: "
+                                "(devnum [%d], devpath [%s], product [%s], manufacturer [%s], serial [%s]), "
+                                "with pipe (type [%d], in [%d], endpoint [%d], devaddr [%d]), "
+				"submit_pid [%i], app_pid [%i]\n",
+                                urb, current->pid, current->comm, urb->dev->devnum,
+				(urb->dev->devpath ? urb->dev->devpath : "UNKNOWN"),
+                                (urb->dev->product ? urb->dev->product : "UNKNOWN"),
+                                (urb->dev->manufacturer ? urb->dev->manufacturer : "UNKNOWN"),
+                                (urb->dev->serial ? urb->dev->serial : "UNKNOWN"),
+                                usb_pipetype(urb->pipe),
+                                usb_pipein(urb->pipe),
+                                usb_pipeendpoint(urb->pipe),
+                                usb_pipedevice(urb->pipe),
+				urb->submit_pid,
+				urb->app_pid);
+
+		/* Dump status and the IN buffer */
+		pr_info("usbfilter debug: status [%d], actual len [%d]\n",
+			status, urb->actual_length);
+		if (usb_pipein(urb->pipe))
+			if (urb->transfer_buffer)
+				print_hex_dump(KERN_INFO, "IN ", DUMP_PREFIX_NONE, 16, 1,
+					urb->transfer_buffer, urb->actual_length, 0);
+	}
+	
 	usb_anchor_suspend_wakeups(anchor);
 	usb_unanchor_urb(urb);
 	if (likely(status == 0))
