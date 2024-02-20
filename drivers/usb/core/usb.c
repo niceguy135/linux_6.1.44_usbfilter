@@ -44,6 +44,9 @@
 #include <linux/mm.h>
 #include <linux/dma-mapping.h>
 
+/* daveti: usbfilter */
+#include <linux/usbfilter.h>
+
 #include "hub.h"
 
 const char *usbcore_name = "usbcore";
@@ -1110,6 +1113,13 @@ static int __init usb_init(void)
 	retval = usb_hub_init();
 	if (retval)
 		goto hub_init_failed;
+        /* daveti: usbfilter */
+#ifdef CONFIG_USB_FILTER
+        retval = usbfilter_init();
+        if (retval)
+                usbfilter_exit();
+#endif
+
 	retval = usb_register_device_driver(&usb_generic_driver, THIS_MODULE);
 	if (!retval)
 		goto out;
@@ -1140,7 +1150,11 @@ static void __exit usb_exit(void)
 	/* This will matter if shutdown/reboot does exitcalls. */
 	if (usb_disabled())
 		return;
-
+		
+	/* daveti: usbfilter */
+#ifdef CONFIG_USB_FILTER
+	usbfilter_exit();
+#endif
 	usb_release_quirk_list();
 	usb_deregister_device_driver(&usb_generic_driver);
 	usb_major_cleanup();
