@@ -877,11 +877,7 @@ int elv_merge_uf(struct request_queue *q, struct request **req, struct bio *bio,
         /*
          * First try one-hit cache.
          */
-
-		bool result;
-		result = blk_rq_merge_ok(q->last_merge, bio);
-
-        if (q->last_merge && result) {
+        if (q->last_merge && elv_rq_merge_ok(q->last_merge, bio)) {
                 ret = blk_try_merge(q->last_merge, bio);
                 if (ret != ELEVATOR_NO_MERGE) {
 			/* Check the pid */
@@ -899,10 +895,7 @@ int elv_merge_uf(struct request_queue *q, struct request **req, struct bio *bio,
          * See if our hash lookup can find a potential backmerge.
          */
         __rq = elv_rqhash_find(q, bio->bi_sector);
-
-		result = blk_rq_merge_ok(__rq, bio);
-
-        if (__rq && result) {
+        if (__rq && elv_rq_merge_ok(__rq, bio)) {
 		/* Check the pid */
 		if (__rq->uf_pid == pid) {
                 	*req = __rq;

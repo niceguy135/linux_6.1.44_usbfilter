@@ -105,9 +105,6 @@ struct request {
 		struct request *rq_next;
 	};
 
-	//usbfilter
-	pid_t uf_pid;
-
 	struct block_device *part;
 #ifdef CONFIG_BLK_RQ_ALLOC_TIME
 	/* Time that the first bio started allocating this request. */
