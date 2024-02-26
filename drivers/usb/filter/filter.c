@@ -44,8 +44,6 @@ DEFINE_SPINLOCK(usbfilter_on_lock);
 static int usbfilter_inited;
 /* Debug */
 static int usbfilter_debug = 0;
-/* Perf */
-static int usbfilter_perf = 0;
 /* Netlink socket */
 static struct sock *usbfilter_nl_sock;
 /* pid for usbtables */
@@ -884,11 +882,6 @@ static pid_t usbfilter_get_pgid(struct task_struct *task)
 	return uf_pgid;
 }
 
-static pid_t usbfilter_get_current_pgid(void)
-{
-	return usbfilter_get_pgid(current);
-}
-
 /* All below are learned from kernel/sys.c */
 static uid_t usbfilter_get_uid(struct task_struct *task)
 {
@@ -1050,9 +1043,7 @@ static int usbfilter_match_rule_dev(struct urb *urb, struct dev_tab *tab)
 	}
 
 	if (tab->devpath[0] != '\0') {
-		if (!urb->dev->devpath)
-			goto dev_quick_match;
-		if ((urb->dev->devpath) && (strcasecmp(tab->devpath, urb->dev->devpath)))
+		if (strcasecmp(tab->devpath, urb->dev->devpath))
 			goto dev_quick_match;
 	}
 
@@ -1085,8 +1076,6 @@ dev_quick_match:
 
 static int usbfilter_get_urb_dir(struct urb *urb)
 {
-	int ret;
-
 	/* Check for IN */
 	if (usb_pipein(urb->pipe))
 		return USBFILTER_PKT_TAB_DIR_IN;
@@ -1354,17 +1343,12 @@ int usbfilter_filter_urb(struct urb *urb)
 	int action;
 	unsigned long flags;
 	struct usbfilter_rdb_ele *ptr;
-	struct timeval start_tv, end_tv;
 
 	if (usbfilter_debug) {
 		pr_info("usbfilter - Debug: into [%s] with urb [%p]\n",
 			__func__, urb);
 		usbfilter_dump_conditions(urb);
 	}
-
-	/* Micro-benchmark */
-	if (usbfilter_perf)
-		do_gettimeofday(&start_tv);
 
 	/* Get the default action */
 	spin_lock_irqsave(&usbfilter_default_behavior_lock, flags);
@@ -1404,12 +1388,6 @@ int usbfilter_filter_urb(struct urb *urb)
 			break;
 	}
 	spin_unlock_irqrestore(&usbfilter_rdb_lock, flags);
-
-	if (usbfilter_perf) {
-		do_gettimeofday(&end_tv);
-		pr_info("usbfilter-perf: %s took [%lu] us\n", __func__,
-			USBFILTER_MBM_SUB_TV(start_tv, end_tv));
-	}
 
 	return action;
 }
