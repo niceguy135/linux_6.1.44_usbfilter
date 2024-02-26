@@ -60,7 +60,6 @@
 #define USBFILTER_MBM_SUB_TV(s, e)                \
         ((e.tv_sec*USBFILTER_MBM_SEC_IN_USEC+e.tv_usec) - \
         (s.tv_sec*USBFILTER_MBM_SEC_IN_USEC+s.tv_usec))
-static int usbfilter_perf_new_device = 1;
 
 /* Protect struct usb_device->state and ->children members
  * Note: Both are also protected by ->dev.sem, except that ->state can
@@ -2531,9 +2530,6 @@ int usb_new_device(struct usb_device *udev)
 {
 	int err;
 
-	//daveti
-	struct timeval start_tv, end_tv;
-
 	if (udev->parent) {
 		/* Initialize non-root-hub device wakeup to disabled;
 		 * device (un)configuration controls wakeup capable
@@ -2614,14 +2610,6 @@ int usb_new_device(struct usb_device *udev)
 	(void) usb_create_ep_devs(&udev->dev, &udev->ep0, udev);
 	usb_mark_last_busy(udev);
 	pm_runtime_put_sync_autosuspend(&udev->dev);
-
-	//daveti
-	/* End usbfilter perf */
-	if (usbfilter_perf_new_device) {
-		do_gettimeofday(&end_tv);
-		pr_info("usbfilter-perf: usb_new_device took [%lu] us\n",
-			USBFILTER_MBM_SUB_TV(start_tv, end_tv));
-	}
 
 	return err;
 
