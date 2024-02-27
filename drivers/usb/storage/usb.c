@@ -75,9 +75,6 @@ static char quirks[128];
 module_param_string(quirks, quirks, sizeof(quirks), S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(quirks, "supplemental list of device IDs and their quirks");
 
-/* daveti: for usbfilter */
-static int usbfilter_debug;
-
 /*
  * The entries in this table correspond, line for line,
  * with the entries in usb_storage_usb_ids[], defined in usual-tables.c.
@@ -378,13 +375,6 @@ static int usb_stor_control_thread(void * __us)
 
 		/* we've got a command, let's do it! */
 		else {
-			/* daveti: debug */
-			if (usbfilter_debug)
-				pr_info("usbfilter: debug - request [%p], uf_pid [%i], cmnd [0x%x]\n",
-					us->srb->request,
-					us->srb->request->uf_pid,
-					us->srb->cmnd[0]);
-
 			US_DEBUG(usb_stor_show_command(us, srb));
 			us->proto_handler(srb, us);
 			usb_mark_last_busy(us->pusb_dev);
